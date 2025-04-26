@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Swipe Survival</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle, #0b032d 0%, #2b0f53 100%);
+      animation: backgroundShift 20s infinite alternate;
+    }
+
+    @keyframes backgroundShift {
+      0% { background: radial-gradient(circle, #0b032d, #2b0f53); }
+      50% { background: radial-gradient(circle, #1d0757, #520f7a); }
+      100% { background: radial-gradient(circle, #0b032d, #2b0f53); }
+    }
+
+    #gameCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      cursor: none;
+    }
+
+    #timer, #phase, #mode {
+      position: absolute;
+      top: 10px;
+      font-family: 'Arial', sans-serif;
+      font-size: 24px;
+      color: #00ffff;
+      text-shadow: 0 0 10px #00ffff;
+    }
+    #timer { left: 10px; }
+    #phase { left: 50%; transform: translateX(-50%); }
+    #mode { right: 10px; }
+  </style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+<div id="timer">00:00</div>
+<div id="phase">Fase 1</div>
+<div id="mode">Desvie!</div>
+
+<audio id="slashSound" src="https://freesound.org/data/previews/256/256113_3263906-lq.mp3"></audio>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let objects = [];
+let timer = 0;
+let phase = 1;
+let mode = "Desvie"; // Alterna entre "Desvie" e "Corte"
+let lastTime = Date.now();
+let slashSound = document.getElementById('slashSound');
+let fingerPos = { x: canvas.width/2, y: canvas.height/2 };
+
+function createObject() {
+  const size = Math.random() * 20 + 20;
+  const side = Math.floor(Math.random() * 4);
+  let x, y, dx, dy;
+  let speed = 2 + phase * 0.5;
+
+  if (side === 0) { x = 0; y = Math.random() * canvas.height; dx = speed; dy = 0; }
+  if (side === 1) { x = canvas.width; y = Math.random() * canvas.height; dx = -speed; dy = 0; }
+  if (side === 2) { x = Math.random() * canvas.width; y = 0; dx = 0; dy = speed; }
+  if (side === 3) { x = Math.random() * canvas.width; y = canvas.height; dx = 0; dy = -speed; }
+
+  objects.push({x, y, dx, dy, size, alive: true});
+}
+
+function updateGame() {
+  const now = Date.now();
+  timer += (now - lastTime) / 1000;
+  lastTime = now;
+
+  if (Math.floor(timer) % 2 === 0) createObject();
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Move and draw cosmic finger
+  ctx.beginPath();
+  let gradient = ctx.createRadialGradient(fingerPos.x, fingerPos.y, 10, fingerPos.x, fingerPos.y, 40);
+  gradient.addColorStop(0, '#ff00ff');
+  gradient.addColorStop(1, 'transparent');
+  ctx.fillStyle = gradient;
+  ctx.arc(fingerPos.x, fingerPos.y, 20, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.closePath();
+
+  // Move and draw objects
+  objects.forEach(obj => {
+    obj.x += obj.dx;
+    obj.y += obj.dy;
+
+    if (obj.alive) {
+      ctx.beginPath();
+      ctx.fillStyle = '#00ffff';
+      ctx.shadowColor = '#00ffff';
+      ctx.shadowBlur = 20;
+      ctx.arc(obj.x, obj.y, obj.size/2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.closePath();
+
+      // Check collision
+      if (mode === "Desvie") {
+        const dist = Math.hypot(obj.x - fingerPos.x, obj.y - fingerPos.y);
+        if (dist < obj.size/2 + 20) gameOver();
+      }
+    }
+  });
+
+  // Update UI
+  document.getElementById('timer').textContent = formatTime(timer);
+
+  // Every 30 seconds, increase phase and invert mode
+  if (timer >= phase * 30) {
+    phase++;
+    mode = (mode === "Desvie") ? "Corte" : "Desvie";
+    document.getElementById('phase').textContent = `Fase ${phase}`;
+    document.getElementById('mode').textContent = mode + "!";
+  }
+
+  requestAnimationFrame(updateGame);
+}
+
+function formatTime(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
+function gameOver() {
+  alert("Game Over! Tempo: " + formatTime(timer));
+  window.location.reload();
+}
+
+canvas.addEventListener('mousemove', function(e) {
+  fingerPos.x = e.clientX;
+  fingerPos.y = e.clientY;
+
+  if (mode === "Corte") {
+    objects.forEach(obj => {
+      const dist = Math.hypot(obj.x - fingerPos.x, obj.y - fingerPos.y);
+      if (dist < obj.size/2 + 20 && obj.alive) {
+        obj.alive = false;
+        slashSound.play();
+      }
+    });
+  }
+});
+
+updateGame();
+</script>
+
+</body>
+</html>
